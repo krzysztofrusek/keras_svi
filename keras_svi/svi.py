@@ -1,3 +1,8 @@
+'''
+Copyright (c) 2020, AGH University of Science and Technology.
+'''
+
+
 import tensorflow as tf
 import tensorflow_probability as tfp
 tfk = tf.keras

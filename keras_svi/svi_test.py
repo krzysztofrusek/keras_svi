@@ -1,3 +1,6 @@
+'''
+Copyright (c) 2020, AGH University of Science and Technology.
+'''
 import unittest
 import tensorflow as tf
 import tensorflow_probability as tfp
@@ -6,7 +9,7 @@ tfk = tf.keras
 tfd = tfp.distributions
 tfb = tfp.bijectors
 
-import svi
+from keras_svi import svi
 
 
 class TestSVI(unittest.TestCase):
