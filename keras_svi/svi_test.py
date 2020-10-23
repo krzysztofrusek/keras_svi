@@ -14,7 +14,7 @@ from keras_svi import svi
 
 class TestSVI(unittest.TestCase):
     def test_svi(self):
-        nn = 500
+        nn = 50
         _x = np.random.normal(size=(nn, 3)).astype(np.float32)
         _y = .4 * _x[:, 0] + 0.2 * _x[:, 1] - 0.3 * _x[:, 2] + 1.5 + np.random.normal(size=(nn), scale=.1).astype(
             np.float32)
@@ -32,6 +32,26 @@ class TestSVI(unittest.TestCase):
         bayesian_model.fit(_x,_y, epochs=2, batch_size=nn, verbose=1)
 
         return
+
+    def test_built(self):
+        nn = 50
+        _x = np.random.normal(size=(nn, 3)).astype(np.float32)
+        _y = .4 * _x[:, 0] + 0.2 * _x[:, 1] - 0.3 * _x[:, 2] + 1.5 + np.random.normal(size=(nn), scale=.1).astype(
+            np.float32)
+
+        _x = tf.convert_to_tensor(_x)
+        _y = tf.convert_to_tensor(_y)
+
+        model = tf.keras.Sequential([
+            tf.keras.layers.Dense(1)
+        ])
+        model(_x)
+        bayesian_model = svi.SVI(model, kl_scale=1.0)
+        bayesian_model.compile(loss=tfk.losses.MeanSquaredError(), optimizer=tf.keras.optimizers.Adam(learning_rate=0.01))
+        bayesian_model.fit(_x,_y, epochs=2, batch_size=nn, verbose=1)
+
+        return
+
     def test_rnn(self):
 
         x=np.random.normal(size=(200,10,1))
@@ -49,7 +69,7 @@ class TestSVI(unittest.TestCase):
         bayesian_model.fit(x, y, epochs=2, batch_size=64, verbose=1)
 
     def test_map(self):
-        nn = 500
+        nn = 50
         _x = np.random.normal(size=(nn, 3)).astype(np.float32)
         _y = .4 * _x[:, 0] + 0.2 * _x[:, 1] - 0.3 * _x[:, 2] + 1.5 + np.random.normal(size=(nn), scale=.1).astype(
             np.float32)
