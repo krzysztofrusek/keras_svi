@@ -36,8 +36,8 @@ class SVI(tfk.Model):
         self.prior_fn = prior_fn
 
     def build(self, input_shape):
-        self.model.build(input_shape)
-        tf.print('build')
+        if not self.model.built:
+            self.model.build(input_shape)
 
         vars = self.model.trainable_variables
         self.posterior = tfp.distributions.JointDistributionSequential([self.posterior_fn(v) for v in vars])
@@ -45,7 +45,9 @@ class SVI(tfk.Model):
             self.prior_fn(m) for m in self.posterior.model
         ])
         self.vars = vars
-        super(SVI, self).build(input_shape)
+        self.built=True
+        # Fix issue with dict of shapes
+        #super(SVI, self).build(input_shape)
 
     def call(self,inputs):
         theta = self.posterior.sample()
