@@ -91,7 +91,7 @@ class SVI(tfk.Model):
             if not isinstance(self.posterior.model[0].distribution, tfd.Deterministic):
                 grad_pairs.append(g)
 
-        elbo = loss + self.kl_scale * kl
+        elbo_loss = loss + self.kl_scale * kl
         elbo_grad = [g1 * g2 + self.kl_scale*g3 for g1, g2, g3 in zip(grad_pairs, sample_grad, kl_grad)]
 
         self.optimizer.apply_gradients(zip(elbo_grad, self.posterior.variables))
@@ -99,7 +99,7 @@ class SVI(tfk.Model):
         self.compiled_metrics.update_state(y, yhat)
         # Return a dict mapping metric names to current value
         ret = {m.name: m.result() for m in self.metrics}
-        ret.update(dict(loss=loss, kl=kl, elbo=elbo))
+        ret.update(dict(loss=elbo_loss, kl=kl, elbo=-elbo_loss, nll=loss))
         return ret
 
     def predict_step(self, data):
