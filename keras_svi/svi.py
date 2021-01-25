@@ -54,8 +54,9 @@ def make_spike_and_slab_prior(posterior):
     return tfd.Independent(tfd.MixtureSameFamily(
         mixture_distribution=tfd.Categorical(probs=[0.5, 0.5]),
         components_distribution=tfd.Normal(
-            loc=tf.zeros(posterior.event_shape),
-            scale=tf.constant([1., 2000.], dtype=posterior.dtype))), reinterpreted_batch_ndims=n-1)
+            loc=tf.zeros(posterior.event_shape + [2]),
+            scale=tf.constant([[[1., 2000.]]], dtype=posterior.dtype))), reinterpreted_batch_ndims=n)
+
 
 def exact_kl(q,p):
     return q.kl_divergence(p)
