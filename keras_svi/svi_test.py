@@ -105,7 +105,27 @@ class TestSVI(unittest.TestCase):
         bayesian_model.fit(_x,_y, epochs=2, batch_size=nn, verbose=1)
 
         return
+    def test_mc_kl(self):
+        nn = 50
+        _x = np.random.normal(size=(nn, 3)).astype(np.float32)
+        _y = .4 * _x[:, 0] + 0.2 * _x[:, 1] - 0.3 * _x[:, 2] + 1.5 + np.random.normal(size=(nn), scale=.1).astype(
+            np.float32)
 
+        _x = tf.convert_to_tensor(_x)
+        _y = tf.convert_to_tensor(_y)
+
+        model = tf.keras.Sequential([
+            tf.keras.Input(shape=(3)),
+            tf.keras.layers.Dense(1)
+        ])
+
+        bayesian_model = svi.SVI(model,
+                                 kl_scale=1.0,
+                                 kl_fn=svi.mc_kl,
+                                 prior_fn=svi.make_spike_and_slab_prior,
+                                 posterior_fn=svi.make_mvn_posterior)
+        bayesian_model.compile(loss=tfk.losses.MeanSquaredError(), optimizer=tf.keras.optimizers.Adam(learning_rate=0.01))
+        bayesian_model.fit(_x,_y, epochs=2, batch_size=nn, verbose=1)
 
 if __name__ == '__main__':
     unittest.main()

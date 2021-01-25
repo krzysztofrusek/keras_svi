@@ -18,22 +18,65 @@ def _make_posterior(v):
                            reinterpreted_batch_ndims=n)
 
 
+
+
 def _make_prior(posterior):
     n = len(posterior.event_shape)
     return tfd.Independent(tfd.Normal(tf.zeros(posterior.event_shape), 2.),
                            reinterpreted_batch_ndims=n)
 
+
+def make_mvn_posterior(v):
+    '''
+    Inspired by https://github.com/tensorflow/probability/blob/master/tensorflow_probability/python/experimental/nn/util/kernel_bias.py
+    Args:
+        v:
+
+    Returns:
+
+    '''
+    n = len(v.shape)
+    return tfd.Independent(tfd.Normal(loc=tf.Variable(tf.convert_to_tensor(v)),
+                                      scale=tfp.util.TransformedVariable(1e-3 + tf.zeros_like(v),
+                                                                         tfb.Chain([tfb.Shift(1e-5), tfb.Softplus()]))),
+                           reinterpreted_batch_ndims=n)
+
+def make_spike_and_slab_prior(posterior):
+    '''
+    Inspired by https://github.com/tensorflow/probability/blob/master/tensorflow_probability/python/experimental/nn/util/kernel_bias.py
+    Args:
+        posterior:
+
+    Returns:
+
+    '''
+    n = len(posterior.event_shape)
+    return tfd.Independent(tfd.MixtureSameFamily(
+        mixture_distribution=tfd.Categorical(probs=[0.5, 0.5]),
+        components_distribution=tfd.Normal(
+            loc=tf.zeros(posterior.event_shape),
+            scale=tf.constant([1., 2000.], dtype=posterior.dtype))), reinterpreted_batch_ndims=n-1)
+
+def exact_kl(q,p):
+    return q.kl_divergence(p)
+
+def mc_kl(q,p):
+    return p.log_prob(q.sample())
+
+
 #TODO Handle Fused RNN
 class SVI(tfk.Model):
     def __init__(self, model, kl_scale=1.0,
                  posterior_fn=_make_posterior,
-                 prior_fn = _make_prior):
+                 prior_fn = _make_prior,
+                 kl_fn=exact_kl):
         super(SVI, self).__init__()
 
         self.model = model
         self.kl_scale=kl_scale
         self.posterior_fn = posterior_fn
         self.prior_fn = prior_fn
+        self.kl_fn = kl_fn
 
     def build(self, input_shape):
         if not self.model.built:
@@ -76,7 +119,8 @@ class SVI(tfk.Model):
 
             with tape.stop_recording():
                 with tf.GradientTape() as kl_tape:
-                    kl = self.posterior.kl_divergence(self.prior)
+                    #kl = self.posterior.kl_divergence(self.prior)
+                    kl = self.kl_fn(self.posterior,self.prior)
                 kl_grad = kl_tape.gradient(kl, self.posterior.variables)
 
             loss = self.compiled_loss(y, yhat)
