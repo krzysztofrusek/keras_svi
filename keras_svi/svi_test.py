@@ -2,9 +2,11 @@
 Copyright (c) 2020, AGH University of Science and Technology.
 '''
 import unittest
+
+import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-import numpy as np
+
 tfk = tf.keras
 tfd = tfp.distributions
 tfb = tfp.bijectors
@@ -28,8 +30,9 @@ class TestSVI(unittest.TestCase):
         ])
 
         bayesian_model = svi.SVI(model, kl_scale=1.0)
-        bayesian_model.compile(loss=tfk.losses.MeanSquaredError(), optimizer=tf.keras.optimizers.Adam(learning_rate=0.01))
-        bayesian_model.fit(_x,_y, epochs=2, batch_size=nn, verbose=1)
+        bayesian_model.compile(loss=tfk.losses.MeanSquaredError(),
+                               optimizer=tf.keras.optimizers.Adam(learning_rate=0.01))
+        bayesian_model.fit(_x, _y, epochs=2, batch_size=nn, verbose=1)
 
         return
 
@@ -47,18 +50,18 @@ class TestSVI(unittest.TestCase):
         ])
         model(_x)
         bayesian_model = svi.SVI(model, kl_scale=1.0)
-        bayesian_model.compile(loss=tfk.losses.MeanSquaredError(), optimizer=tf.keras.optimizers.Adam(learning_rate=0.01))
-        bayesian_model.fit(_x,_y, epochs=2, batch_size=nn, verbose=1)
+        bayesian_model.compile(loss=tfk.losses.MeanSquaredError(),
+                               optimizer=tf.keras.optimizers.Adam(learning_rate=0.01))
+        bayesian_model.fit(_x, _y, epochs=2, batch_size=nn, verbose=1)
 
         return
 
     def test_rnn(self):
-
-        x=np.random.normal(size=(200,10,1))
-        y=np.random.normal(size=(200,1))
+        x = np.random.normal(size=(200, 10, 1))
+        y = np.random.normal(size=(200, 1))
         model = tf.keras.Sequential([
             tf.keras.Input(shape=(10, 1)),
-            #tf.keras.layers.GRU(4),
+            # tf.keras.layers.GRU(4),
             tf.keras.layers.RNN(tfk.layers.GRUCell(4)),
             tf.keras.layers.Dense(1)
         ])
@@ -70,9 +73,8 @@ class TestSVI(unittest.TestCase):
 
     def test_map(self):
         nn = 50
-        _x = np.random.normal(size=(nn, 3)).astype(np.float32)
-        _y = .4 * _x[:, 0] + 0.2 * _x[:, 1] - 0.3 * _x[:, 2] + 1.5 + np.random.normal(size=(nn), scale=.1).astype(
-            np.float32)
+        _x = np.random.normal(size=(nn, 3))
+        _y = .4 * _x[:, 0] + 0.2 * _x[:, 1] - 0.3 * _x[:, 2] + 1.5 + np.random.normal(size=(nn), scale=.1)
 
         _x = tf.convert_to_tensor(_x)
         _y = tf.convert_to_tensor(_y)
@@ -88,7 +90,8 @@ class TestSVI(unittest.TestCase):
 
         def _make_prior(posterior):
             n = len(posterior.event_shape)
-            return tfd.Independent(tfd.Normal(tf.zeros(posterior.event_shape), 2.),
+            return tfd.Independent(tfd.Normal(tf.zeros(posterior.event_shape, dtype=posterior.dtype),
+                                              tf.constant(2., dtype=posterior.dtype)),
                                    reinterpreted_batch_ndims=n)
 
         bayesian_model = svi.SVI(model,
@@ -102,14 +105,14 @@ class TestSVI(unittest.TestCase):
             optimizer=tf.keras.optimizers.Adam(learning_rate=0.01),
             run_eagerly=False
         )
-        bayesian_model.fit(_x,_y, epochs=2, batch_size=nn, verbose=1)
+        bayesian_model.fit(_x, _y, epochs=2, batch_size=nn, verbose=1)
 
         return
+
     def test_mc_kl(self):
         nn = 50
-        _x = np.random.normal(size=(nn, 3)).astype(np.float32)
-        _y = .4 * _x[:, 0] + 0.2 * _x[:, 1] - 0.3 * _x[:, 2] + 1.5 + np.random.normal(size=(nn), scale=.1).astype(
-            np.float32)
+        _x = np.random.normal(size=(nn, 3))
+        _y = .4 * _x[:, 0] + 0.2 * _x[:, 1] - 0.3 * _x[:, 2] + 1.5 + np.random.normal(size=(nn), scale=.1)
 
         _x = tf.convert_to_tensor(_x)
         _y = tf.convert_to_tensor(_y)
@@ -124,8 +127,15 @@ class TestSVI(unittest.TestCase):
                                  kl_fn=svi.mc_kl,
                                  prior_fn=svi.make_spike_and_slab_prior,
                                  posterior_fn=svi.make_mvn_posterior)
-        bayesian_model.compile(loss=tfk.losses.MeanSquaredError(), optimizer=tf.keras.optimizers.Adam(learning_rate=0.01))
-        bayesian_model.fit(_x,_y, epochs=2, batch_size=nn, verbose=1)
+        bayesian_model.compile(loss=tfk.losses.MeanSquaredError(),
+                               optimizer=tf.keras.optimizers.Adam(learning_rate=0.01))
+        bayesian_model.fit(_x, _y, epochs=2, batch_size=nn, verbose=1)
+
+
+class Test64(TestSVI):
+    def setUp(self) -> None:
+        tf.keras.backend.set_floatx('float64')
+
 
 if __name__ == '__main__':
     unittest.main()

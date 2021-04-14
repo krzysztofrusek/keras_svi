@@ -2,9 +2,9 @@
 Copyright (c) 2020, AGH University of Science and Technology.
 '''
 
-
 import tensorflow as tf
 import tensorflow_probability as tfp
+
 tfk = tf.keras
 tfd = tfp.distributions
 tfb = tfp.bijectors
@@ -12,18 +12,20 @@ tfb = tfp.bijectors
 
 def _make_posterior(v):
     n = len(v.shape)
-    return tfd.Independent(tfd.Normal(loc=tf.Variable(tf.convert_to_tensor(v)),
-                                      scale=tfp.util.TransformedVariable(0.1 + tf.zeros_like(v),
-                                                                         tfb.Softplus()(tfb.Scale(0.2)))),
-                           reinterpreted_batch_ndims=n)
-
-
+    dtype = v.dtype
+    return tfd.Independent(
+        tfd.Normal(loc=tf.Variable(tf.convert_to_tensor(v)),
+                   scale=tfp.util.TransformedVariable(0.1 + tf.zeros_like(v),
+                                                      tfb.Softplus()(tfb.Scale(tf.constant(0.2, dtype=dtype))),
+                                                      dtype=dtype)
+                   ), reinterpreted_batch_ndims=n)
 
 
 def _make_prior(posterior):
     n = len(posterior.event_shape)
-    return tfd.Independent(tfd.Normal(tf.zeros(posterior.event_shape), 2.),
-                           reinterpreted_batch_ndims=n)
+    return tfd.Independent(
+        tfd.Normal(tf.zeros(posterior.event_shape, dtype=posterior.dtype), tf.constant(2., dtype=posterior.dtype)),
+        reinterpreted_batch_ndims=n)
 
 
 def make_mvn_posterior(v):
@@ -36,10 +38,14 @@ def make_mvn_posterior(v):
 
     '''
     n = len(v.shape)
-    return tfd.Independent(tfd.Normal(loc=tf.Variable(tf.convert_to_tensor(v)),
-                                      scale=tfp.util.TransformedVariable(1e-3 + tf.zeros_like(v),
-                                                                         tfb.Chain([tfb.Shift(1e-5), tfb.Softplus()]))),
+    return tfd.Independent(tfd.Normal(loc=tf.Variable(tf.convert_to_tensor(v), dtype=v.dtype),
+                                      scale=tfp.util.TransformedVariable(
+                                          tf.constant(1e-3, dtype=v.dtype) + tf.zeros_like(v),
+                                          tfb.Chain([tfb.Shift(tf.constant(1e-5, dtype=v.dtype)), tfb.Softplus()]),
+                                          dtype=v.dtype),
+                                      ),
                            reinterpreted_batch_ndims=n)
+
 
 def make_spike_and_slab_prior(posterior):
     '''
@@ -52,29 +58,30 @@ def make_spike_and_slab_prior(posterior):
     '''
     n = len(posterior.event_shape)
     return tfd.Independent(tfd.MixtureSameFamily(
-        mixture_distribution=tfd.Categorical(probs=[0.5, 0.5]),
+        mixture_distribution=tfd.Categorical(probs=tf.convert_to_tensor([0.5, 0.5], dtype=posterior.dtype)),
         components_distribution=tfd.Normal(
-            loc=tf.zeros(posterior.event_shape + [2]),
+            loc=tf.zeros(posterior.event_shape + [2], dtype=posterior.dtype),
             scale=tf.constant([[[1., 2000.]]], dtype=posterior.dtype))), reinterpreted_batch_ndims=n)
 
 
-def exact_kl(q,p):
+def exact_kl(q, p):
     return q.kl_divergence(p)
 
-def mc_kl(q,p):
+
+def mc_kl(q, p):
     return p.log_prob(q.sample())
 
 
-#TODO Handle Fused RNN
+# TODO Handle Fused RNN
 class SVI(tfk.Model):
     def __init__(self, model, kl_scale=1.0,
                  posterior_fn=_make_posterior,
-                 prior_fn = _make_prior,
+                 prior_fn=_make_prior,
                  kl_fn=exact_kl):
         super(SVI, self).__init__()
 
         self.model = model
-        self.kl_scale=kl_scale
+        self.kl_scale = kl_scale
         self.posterior_fn = posterior_fn
         self.prior_fn = prior_fn
         self.kl_fn = kl_fn
@@ -89,21 +96,20 @@ class SVI(tfk.Model):
             self.prior_fn(m) for m in self.posterior.model
         ])
         self.vars = vars
-        self.built=True
+        self.built = True
         # Fix issue with dict of shapes
-        #super(SVI, self).build(input_shape)
+        # super(SVI, self).build(input_shape)
 
-    def call(self,inputs):
+    def call(self, inputs):
         theta = self.posterior.sample()
         for v, s in zip(self.vars, theta):
             v.assign(s)
         return self.model(inputs)
 
+    def train_step(self, data):
+        x, y = data
 
-    def train_step(self,data):
-        x,y = data
-
-        #trigger creation of posterior
+        # trigger creation of posterior
         if not self.built:
             self(x)
 
@@ -120,15 +126,15 @@ class SVI(tfk.Model):
 
             with tape.stop_recording():
                 with tf.GradientTape() as kl_tape:
-                    #kl = self.posterior.kl_divergence(self.prior)
-                    kl = self.kl_fn(self.posterior,self.prior)
+                    # kl = self.posterior.kl_divergence(self.prior)
+                    kl = self.kl_fn(self.posterior, self.prior)
                 kl_grad = kl_tape.gradient(kl, self.posterior.variables)
 
             loss = self.compiled_loss(y, yhat)
 
         grad = tape.gradient(loss, self.vars)
 
-        grad_pairs =[]
+        grad_pairs = []
 
         for g in grad:
             grad_pairs.append(g)
@@ -137,7 +143,7 @@ class SVI(tfk.Model):
                 grad_pairs.append(g)
 
         elbo_loss = loss + self.kl_scale * kl
-        elbo_grad = [g1 * g2 + self.kl_scale*g3 for g1, g2, g3 in zip(grad_pairs, sample_grad, kl_grad)]
+        elbo_grad = [g1 * g2 + self.kl_scale * g3 for g1, g2, g3 in zip(grad_pairs, sample_grad, kl_grad)]
 
         self.optimizer.apply_gradients(zip(elbo_grad, self.posterior.variables))
 
@@ -154,7 +160,3 @@ class SVI(tfk.Model):
             v.assign(s)
         yhat = self.model(data)
         return yhat
-
-
-
-
