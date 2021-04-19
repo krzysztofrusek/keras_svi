@@ -63,6 +63,10 @@ def make_spike_and_slab_prior(posterior):
             loc=tf.zeros(posterior.event_shape + [2], dtype=posterior.dtype),
             scale=tf.constant([[[1., 2000.]]], dtype=posterior.dtype))), reinterpreted_batch_ndims=n)
 
+def make_deterministic_posterior(v):
+    n = len(v.shape)
+    return tfd.Independent(tfd.Deterministic(tf.Variable(tf.convert_to_tensor(v))),n)
+
 
 def exact_kl(q, p):
     return q.kl_divergence(p)

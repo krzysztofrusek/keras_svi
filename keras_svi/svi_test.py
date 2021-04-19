@@ -83,11 +83,6 @@ class TestSVI(unittest.TestCase):
             tf.keras.layers.Dense(1)
         ])
 
-        def _make_posterior(v):
-            n = len(v.shape)
-            return tfd.Independent(tfd.Deterministic(tf.Variable(tf.convert_to_tensor(v))),
-                                   reinterpreted_batch_ndims=n)
-
         def _make_prior(posterior):
             n = len(posterior.event_shape)
             return tfd.Independent(tfd.Normal(tf.zeros(posterior.event_shape, dtype=posterior.dtype),
@@ -97,7 +92,7 @@ class TestSVI(unittest.TestCase):
         bayesian_model = svi.SVI(model,
                                  kl_scale=1.0,
                                  prior_fn=_make_prior,
-                                 posterior_fn=_make_posterior
+                                 posterior_fn=svi.make_deterministic_posterior
                                  )
 
         bayesian_model.compile(
