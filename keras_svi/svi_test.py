@@ -126,6 +126,39 @@ class TestSVI(unittest.TestCase):
                                optimizer=tf.keras.optimizers.Adam(learning_rate=0.01))
         bayesian_model.fit(_x, _y, epochs=2, batch_size=nn, verbose=1)
 
+    def test_test_step(self):
+        nn = 50
+        _x = np.random.normal(size=(nn, 3))
+        _y = .4 * _x[:, 0] + 0.2 * _x[:, 1] - 0.3 * _x[:, 2] + 1.5 + np.random.normal(size=(nn), scale=.1)
+
+        _x = tf.convert_to_tensor(_x, dtype=tf.keras.backend.floatx())
+        _y = tf.convert_to_tensor(_y, dtype=tf.keras.backend.floatx())
+
+        model = tf.keras.Sequential([
+            tf.keras.layers.Dense(1),
+            tfp.layers.DistributionLambda(lambda t: tfd.Independent(tfd.Normal(loc=t, scale=t**2),1))
+        ])
+
+        bayesian_model = svi.SVI(model,
+                                 kl_scale=1.0,
+                                 kl_fn=svi.mc_kl,
+                                 prior_fn=svi.make_spike_and_slab_prior,
+                                 posterior_fn=svi.make_mvn_posterior)
+        bayesian_model.compile(loss=lambda y, rv_y: -rv_y.log_prob(y),
+                               optimizer=tf.keras.optimizers.Adam(learning_rate=0.01),
+                               metrics=['mse']
+                               )
+        h=bayesian_model.fit(_x, _y,
+                             epochs=2,
+                             batch_size=nn,
+                             validation_data=(_x, _y),
+                             verbose=1)
+        self.assertTrue('val_nll' in h.history)
+        self.assertTrue('val_mse' in h.history)
+        pass
+
+
+
 
 class Test64(TestSVI):
     def setUp(self) -> None:

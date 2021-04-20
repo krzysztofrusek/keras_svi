@@ -81,7 +81,9 @@ class SVI(tfk.Model):
     def __init__(self, model, kl_scale=1.0,
                  posterior_fn=_make_posterior,
                  prior_fn=_make_prior,
-                 kl_fn=exact_kl):
+                 kl_fn=exact_kl,
+                 num_mc=10,
+                 num_test_samples=50):
         super(SVI, self).__init__()
 
         self.model = model
@@ -89,6 +91,8 @@ class SVI(tfk.Model):
         self.posterior_fn = posterior_fn
         self.prior_fn = prior_fn
         self.kl_fn = kl_fn
+        self.num_mc = num_mc
+        self.num_test_samples = num_test_samples
 
     def build(self, input_shape):
         if not self.model.built:
@@ -155,6 +159,29 @@ class SVI(tfk.Model):
         # Return a dict mapping metric names to current value
         ret = {m.name: m.result() for m in self.metrics}
         ret.update(dict(loss=elbo_loss, kl=kl, elbo=-elbo_loss, nll=loss))
+        return ret
+
+    def test_step(self, data):
+        x,y = data
+        hats = [self.predict_step(x) for _ in range(self.num_mc)]
+        if isinstance(hats[0], tfd.Distribution):
+            batch_size = tf.shape(x)[0]
+            prediction_distribution = tfd.Mixture(
+                cat = tfd.Categorical(logits=tf.zeros((batch_size, self.num_mc), dtype=hats[0].dtype)),
+                components=hats
+            )
+            log_prob = prediction_distribution.log_prob(tf.cast(y, tf.keras.backend.floatx()))
+            _sample = prediction_distribution.sample(self.num_test_samples)
+            #TODO try using mean from mixture if component have implement mean
+            y_hat = tf.reduce_mean(_sample, axis=0)
+            extra_metrics = dict(nll=-log_prob)
+        else:
+            y_hat = sum(hats)/tf.cast(len(hats), y.dtype)
+            extra_metrics = dict()
+
+        self.compiled_metrics.update_state(y, y_hat)
+        ret = {m.name: m.result() for m in self.metrics}
+        ret.update(extra_metrics)
         return ret
 
     def predict_step(self, data):
