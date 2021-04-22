@@ -170,18 +170,18 @@ class SVI(tfk.Model):
                 cat = tfd.Categorical(logits=tf.zeros((batch_size, self.num_mc), dtype=hats[0].dtype)),
                 components=hats
             )
-            log_prob = prediction_distribution.log_prob(tf.cast(y, tf.keras.backend.floatx()))
+            #log_prob = prediction_distribution.log_prob(tf.cast(y, tf.keras.backend.floatx()))
             _sample = prediction_distribution.sample(self.num_test_samples)
             #TODO try using mean from mixture if component have implement mean
             y_hat = tf.reduce_mean(_sample, axis=0)
-            extra_metrics = dict(nll=-log_prob)
+            #TODO use tfd.MixtureSameFamily ('Mixture' object has no attribute 'shape')
+            self.compiled_loss(tf.cast(y, tf.keras.backend.floatx()), hats[0])
         else:
             y_hat = sum(hats)/tf.cast(len(hats), y.dtype)
-            extra_metrics = dict()
+            self.compiled_loss(tf.cast(y, tf.keras.backend.floatx()), y_hat)
 
         self.compiled_metrics.update_state(y, y_hat)
         ret = {m.name: m.result() for m in self.metrics}
-        ret.update(extra_metrics)
         return ret
 
     def predict_step(self, data):

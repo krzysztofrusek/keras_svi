@@ -153,7 +153,7 @@ class TestSVI(unittest.TestCase):
                              batch_size=nn,
                              validation_data=(_x, _y),
                              verbose=1)
-        self.assertTrue('val_nll' in h.history)
+        self.assertTrue('val_loss' in h.history)
         self.assertTrue('val_mse' in h.history)
         pass
 
