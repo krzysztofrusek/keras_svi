@@ -73,7 +73,8 @@ def exact_kl(q, p):
 
 
 def mc_kl(q, p):
-    return p.log_prob(q.sample())
+    s=q.sample()
+    return q.log_prob(s)-p.log_prob(s)
 
 
 # TODO Handle Fused RNN
